@@ -1,0 +1,201 @@
+{
+  "source": "https://huggingface.co/datasets/thetrademarkk/india-index-options-1m/tree/0f4800e43e6f96cec0794369d78eb4d3c4211ef5",
+  "revision": "0f4800e43e6f96cec0794369d78eb4d3c4211ef5",
+  "instruments": {
+    "NIFTY 50": {
+      "secondary_sha256": "613864738250107807354c17c7092986960220ac3062b830c65cc5f9ec16fcf7",
+      "matched_bars": 320430,
+      "first": "2023-01-02T09:15:00+05:30",
+      "last": "2026-07-02T15:29:00+05:30",
+      "within_0_05_points": 0.8238367194082951,
+      "median_absolute_close_diff": 0.0,
+      "p95_absolute_close_diff": 0.75,
+      "primary_test": [
+        {
+          "minutes": 1,
+          "strategy": "noise_band",
+          "sessions": 361,
+          "trades": 473,
+          "net_points": -1866.6635120000565
+        },
+        {
+          "minutes": 1,
+          "strategy": "momentum",
+          "sessions": 361,
+          "trades": 722,
+          "net_points": -3895.31867674991
+        },
+        {
+          "minutes": 1,
+          "strategy": "exhaustion",
+          "sessions": 361,
+          "trades": 695,
+          "net_points": -2886.0172238749865
+        },
+        {
+          "minutes": 3,
+          "strategy": "noise_band",
+          "sessions": 361,
+          "trades": 421,
+          "net_points": -2499.9390601250293
+        },
+        {
+          "minutes": 3,
+          "strategy": "momentum",
+          "sessions": 361,
+          "trades": 721,
+          "net_points": -3604.9403031249744
+        },
+        {
+          "minutes": 3,
+          "strategy": "exhaustion",
+          "sessions": 361,
+          "trades": 707,
+          "net_points": -2901.4990828750188
+        }
+      ],
+      "secondary_test": [
+        {
+          "minutes": 1,
+          "strategy": "noise_band",
+          "sessions": 361,
+          "trades": 484,
+          "net_points": -2012.9585538750046
+        },
+        {
+          "minutes": 1,
+          "strategy": "momentum",
+          "sessions": 361,
+          "trades": 722,
+          "net_points": -3944.779180750012
+        },
+        {
+          "minutes": 1,
+          "strategy": "exhaustion",
+          "sessions": 361,
+          "trades": 695,
+          "net_points": -2734.016726999954
+        },
+        {
+          "minutes": 3,
+          "strategy": "noise_band",
+          "sessions": 361,
+          "trades": 429,
+          "net_points": -1977.629807624992
+        },
+        {
+          "minutes": 3,
+          "strategy": "momentum",
+          "sessions": 361,
+          "trades": 721,
+          "net_points": -3694.0173076249966
+        },
+        {
+          "minutes": 3,
+          "strategy": "exhaustion",
+          "sessions": 361,
+          "trades": 706,
+          "net_points": -2929.1645530000214
+        }
+      ]
+    },
+    "SENSEX": {
+      "secondary_sha256": "f5bf7dc1bc73b7aa42ecc7c4c29f44fa14a4de99af38704e82d70ec4dc31706b",
+      "matched_bars": 318901,
+      "first": "2023-01-02T09:15:00+05:30",
+      "last": "2026-07-02T15:29:00+05:30",
+      "within_0_05_points": 0.9949796331776947,
+      "median_absolute_close_diff": 0.0,
+      "p95_absolute_close_diff": 0.0,
+      "primary_test": [
+        {
+          "minutes": 1,
+          "strategy": "noise_band",
+          "sessions": 367,
+          "trades": 471,
+          "net_points": -4716.982591924947
+        },
+        {
+          "minutes": 1,
+          "strategy": "momentum",
+          "sessions": 367,
+          "trades": 734,
+          "net_points": -12098.53532320014
+        },
+        {
+          "minutes": 1,
+          "strategy": "exhaustion",
+          "sessions": 367,
+          "trades": 713,
+          "net_points": -10213.63039559998
+        },
+        {
+          "minutes": 3,
+          "strategy": "noise_band",
+          "sessions": 367,
+          "trades": 421,
+          "net_points": -5518.598887274952
+        },
+        {
+          "minutes": 3,
+          "strategy": "momentum",
+          "sessions": 367,
+          "trades": 733,
+          "net_points": -15196.737453199888
+        },
+        {
+          "minutes": 3,
+          "strategy": "exhaustion",
+          "sessions": 367,
+          "trades": 712,
+          "net_points": -7534.987539775066
+        }
+      ],
+      "secondary_test": [
+        {
+          "minutes": 1,
+          "strategy": "noise_band",
+          "sessions": 367,
+          "trades": 487,
+          "net_points": -5436.021490325085
+        },
+        {
+          "minutes": 1,
+          "strategy": "momentum",
+          "sessions": 367,
+          "trades": 734,
+          "net_points": -12114.392887074962
+        },
+        {
+          "minutes": 1,
+          "strategy": "exhaustion",
+          "sessions": 367,
+          "trades": 713,
+          "net_points": -9884.299305000053
+        },
+        {
+          "minutes": 3,
+          "strategy": "noise_band",
+          "sessions": 367,
+          "trades": 432,
+          "net_points": -6142.8404032498565
+        },
+        {
+          "minutes": 3,
+          "strategy": "momentum",
+          "sessions": 367,
+          "trades": 733,
+          "net_points": -14812.20141504988
+        },
+        {
+          "minutes": 3,
+          "strategy": "exhaustion",
+          "sessions": 367,
+          "trades": 712,
+          "net_points": -7759.952411024946
+        }
+      ]
+    }
+  },
+  "reference_bps": 2
+}
