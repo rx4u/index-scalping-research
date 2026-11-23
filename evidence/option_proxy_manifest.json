@@ -1,0 +1,40 @@
+{
+  "source": "https://huggingface.co/datasets/thetrademarkk/india-index-options-1m/tree/0f4800e43e6f96cec0794369d78eb4d3c4211ef5",
+  "sha256": {
+    "NIFTY_2026-05-26.parquet": "8f64fd55c6646478cfa6b6bf9e0a2622193005319baffcd295648fd77a43f020",
+    "NIFTY_2026-06-02.parquet": "ce6f79911a597f7eba31900df6230fea6cbbb8443e3caee14197328045fb0f6a",
+    "SENSEX_2026-05-14.parquet": "ba027f1eac45b7e3c7143b390d23ca096d4cb2277b09d08737f048cc175b2202",
+    "SENSEX_2026-05-21.parquet": "71e7da50595049837be76ed3f53b7d5ea7eca8790f984a4a84c560a0dad93c1a"
+  },
+  "expiries": {
+    "NIFTY 50": [
+      "2026-05-26",
+      "2026-06-02"
+    ],
+    "SENSEX": [
+      "2026-05-14",
+      "2026-05-21"
+    ]
+  },
+  "specs": {
+    "NIFTY 50": [
+      "NIFTY",
+      50,
+      65,
+      0.0003553
+    ],
+    "SENSEX": [
+      "SENSEX",
+      100,
+      20,
+      0.000325
+    ]
+  },
+  "friction_bps_per_side": [
+    0,
+    25,
+    100
+  ],
+  "sell_stt": 0.0015,
+  "status": "INSUFFICIENT DATA"
+}

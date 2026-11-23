@@ -1,82 +1,112 @@
-"""Research candidate signals. Every signal uses completed bars only."""
+"""Completed-bar research signals on regular Indian index sessions."""
 import numpy as np
 import pandas as pd
 
+TZ = "Asia/Kolkata"
+OHLC = ["open", "high", "low", "close"]
+METHODS = ("noise_band", "momentum", "exhaustion", "naive", "no_trade")
 
-def prepare(df):
-    d = df.copy()
-    d.columns = [str(c).lower().strip() for c in d.columns]
-    if 'date' not in d and 'timestamp' in d:
-        d = d.rename(columns={'timestamp':'date'})
-    required = ['date','open','high','low','close']
-    missing = [x for x in required if x not in d]
-    if missing: raise ValueError(f'Missing fields: {missing}')
-    d['date'] = pd.to_datetime(d['date'])
-    d = d.sort_values('date').drop_duplicates('date').reset_index(drop=True)
-    for c in ['open','high','low','close']:
-        d[c] = pd.to_numeric(d[c], errors='raise')
-    if (d.high < d[['open','close','low']].max(axis=1)).any() or (d.low > d[['open','close','high']].min(axis=1)).any():
-        raise ValueError('Invalid OHLC')
-    d['session'] = d.date.dt.date
-    d['minute'] = d.date.dt.hour*60+d.date.dt.minute
-    # Indian exchange session: avoid external premarket and closing bars
-    d = d[(d.minute >= 9*60+15) & (d.minute <= 15*60+29)].copy().reset_index(drop=True)
-    d['prev_close'] = d.close.shift(1).where(d.session.eq(d.session.shift(1)))
-    d['tr'] = pd.concat([(d.high-d.low), (d.high-d.prev_close).abs(), (d.low-d.prev_close).abs()],axis=1).max(axis=1)
-    # ATR uses ONLY past observations at each completed bar (current bar included).
-    d['atr'] = d.groupby('session')['tr'].transform(lambda x: x.rolling(20,min_periods=20).mean())
+
+def timestamps(values, timezone=TZ):
+    parsed = pd.to_datetime(values, format="mixed")
+    if parsed.isna().any():
+        raise ValueError("Missing timestamp")
+    if isinstance(parsed.dtype, pd.DatetimeTZDtype):
+        return parsed.dt.tz_convert(TZ)
+    if pd.api.types.is_datetime64_dtype(parsed):
+        return parsed.dt.tz_localize(timezone, ambiguous="raise", nonexistent="raise").dt.tz_convert(TZ)
+    raise ValueError("Use a consistent timestamp offset or uniform local timestamps")
+
+
+def prepare(frame, minutes=1, timezone=TZ, calendar=None):
+    """Return complete regular sessions and attach exclusion metadata."""
+    if minutes not in (1, 3):
+        raise ValueError("Signal intervals must be 1 or 3 minutes")
+    data = frame.copy()
+    data.columns = data.columns.str.strip().str.lower()
+    data = data.rename(columns={"timestamp": "date"}) if "date" not in data else data
+    data["date"] = timestamps(data["date"], timezone)
+    data = data.sort_values("date")
+    if data.date.duplicated().any() or not data.date.eq(data.date.dt.floor("min")).all():
+        raise ValueError("Expected unique, minute-aligned bar opening timestamps")
+    data[OHLC] = data[OHLC].apply(pd.to_numeric)
+    if (not np.isfinite(data[OHLC]).all().all() or (data[OHLC] <= 0).any().any()
+            or (data.high < data[OHLC].max(axis=1)).any()
+            or (data.low > data[OHLC].min(axis=1)).any()):
+        raise ValueError("Invalid OHLC")
+    data["session"] = data.date.dt.strftime("%Y-%m-%d")
+    data["minute"] = data.date.dt.hour * 60 + data.date.dt.minute - 555
+    data = data[data.minute.between(0, 374)]
+    observed = data.groupby("session").size()
+    expected = sorted(set(observed.index if calendar is None else calendar))
+    complete = observed[observed.eq(375)].index.intersection(expected)
+    data = data[data.session.isin(complete)].copy()
+    if minutes > 1:
+        data["minute"] = data.minute // minutes * minutes
+        data = data.groupby(["session", "minute"], as_index=False).agg(
+            date=("date", "first"), open=("open", "first"), high=("high", "max"),
+            low=("low", "min"), close=("close", "last"))
+    data["available"] = data.date + pd.Timedelta(minutes=minutes)
+    previous = data.groupby("session").close.shift()
+    true_range = pd.concat([data.high - data.low, (data.high - previous).abs(),
+                            (data.low - previous).abs()], axis=1).max(axis=1)
+    data["atr"] = true_range.groupby(data.session).transform(lambda x: x.rolling(20).mean())
+    data.attrs["coverage"] = {"expected": len(expected), "complete": len(complete),
+                              "excluded": sorted(set(expected) - set(complete)),
+                              "outside_calendar": sorted(set(observed.index) - set(expected))}
+    return data.reset_index(drop=True)
+
+
+def noise_bands(data, width=1.0):
+    group = data.groupby("session")
+    opening = group.open.transform("first")
+    previous = group.close.last().shift().reindex(data.session).to_numpy()
+    movement = data.assign(move=(data.close / opening - 1).abs())
+    history = movement.pivot(index="session", columns="minute", values="move")
+    bands = history.shift().rolling(14, min_periods=14).mean().stack().rename("band")
+    result = data.join(bands, on=["session", "minute"])
+    return result.assign(upper=np.maximum(opening, previous) * (1 + width * result.band),
+                         lower=np.minimum(opening, previous) * (1 - width * result.band))
+
+
+def signals(data, method, width=1.0):
+    """Causal local adaptations. Width controls the noise and reversal thresholds."""
+    if not np.isfinite(width) or width <= 0:
+        raise ValueError("Width must be positive")
+    d = data.copy()
+    group = d.groupby("session")
+    if method == "noise_band":
+        d = noise_bands(d, width)
+        direction = np.select([d.close > d.upper, d.close < d.lower], [1, -1], 0)
+    elif method == "momentum":
+        fast = group.close.pct_change(3)
+        slow = group.close.pct_change(12)
+        high = group.high.transform(lambda x: x.shift().rolling(8).max())
+        low = group.low.transform(lambda x: x.shift().rolling(8).min())
+        direction = np.select([(fast > 0) & (slow > 0) & (d.close > high),
+                               (fast < 0) & (slow < 0) & (d.close < low)], [1, -1], 0)
+    elif method == "exhaustion":
+        prior = group.close.shift()
+        trend = group.close.shift() / group.close.shift(11) - 1
+        low, high = group.low.shift(), group.high.shift()
+        span = group.high.transform(lambda x: x.shift().rolling(20).max()) - group.low.transform(
+            lambda x: x.shift().rolling(20).min())
+        valid = (d.high - d.low > .1 * span) & prior.notna()
+        direction = np.select([valid & (trend < -.001 * width) & (d.low < low) & (d.close > low),
+                               valid & (trend > .001 * width) & (d.high > high) & (d.close < high)],
+                              [1, -1], 0)
+    elif method == "naive":
+        bars = (d.available - d.date).dt.total_seconds() / 60
+        direction = np.where(d.minute + bars == 60, 1, 0)
+    elif method == "no_trade":
+        direction = 0
+    else:
+        raise ValueError(f"Unknown strategy {method}")
+    d["signal"] = direction
+    elapsed = d.available.dt.hour * 60 + d.available.dt.minute - 555
+    d.loc[~elapsed.between(30, 330), "signal"] = 0
     return d
 
 
 def generate(df, method):
-    """Return signal at completed bar close: +1 buy underlying proxy, -1 sell, 0 none.
-    Parameters fixed ex ante, not optimized. One can test and then discard.
-    """
-    d = prepare(df)
-    d['signal'] = 0
-    d['reason'] = ''
-    if method == 'noise_band':
-        # Prior days' average ABSOLUTE movement from same-session open by minute.
-        # A fixed time of day threshold, shifted by full session: no future leakage.
-        d['open_session'] = d.groupby('session').open.transform('first')
-        d['abs_move'] = (d.close-d.open_session).abs()/d.open_session
-        byminute = d.pivot(index='session',columns='minute',values='abs_move')
-        # 14 preceding SESSIONS, require 10 historical observations.
-        # Shift on sessions before computing signal boundary.
-        bands = byminute.shift(1).rolling(14,min_periods=10).mean().stack().rename('band')
-        d = d.join(bands, on=['session','minute'])
-        d['upper'] = d.open_session*(1+d.band)
-        d['lower'] = d.open_session*(1-d.band)
-        d['signal'] = np.select([d.close>d.upper,d.close<d.lower],[1,-1],default=0)
-        # Use first valid breakout per direction per session; main engine limits positions.
-        d['reason'] = 'prior-session time-of-day noise band breakout'
-    elif method == 'momentum':
-        # 3-bar return with 12-bar trend direction and recent range confirmation.
-        # all indicators use completed candles.
-        g=d.groupby('session')
-        d['ret3'] = d.close/g.close.shift(3)-1
-        d['ret12'] = d.close/g.close.shift(12)-1
-        d['prior_high'] = g.high.transform(lambda x: x.shift(1).rolling(8,min_periods=8).max())
-        d['prior_low'] = g.low.transform(lambda x: x.shift(1).rolling(8,min_periods=8).min())
-        long=(d.ret3>0)&(d.ret12>0)&(d.close>d.prior_high)
-        short=(d.ret3<0)&(d.ret12<0)&(d.close<d.prior_low)
-        d['signal']=np.select([long,short],[1,-1],0)
-        d['reason']='3/12-bar momentum with prior 8-bar breakout'
-    elif method == 'exhaustion':
-        # Counter-trend failed extension: prior candle extreme then reject and close
-        # back inside its range; highly speculative, explicitly unvalidated.
-        g=d.groupby('session')
-        priorhigh=g.high.shift(1)
-        priorlow=g.low.shift(1)
-        range20 = g.high.transform(lambda x:x.shift(1).rolling(20,min_periods=20).max()) - g.low.transform(lambda x:x.shift(1).rolling(20,min_periods=20).min())
-        # trend prior to reversal
-        ret10 = d.close/g.close.shift(10)-1
-        long=(ret10<-.001)&(d.low<priorlow)&(d.close>priorlow)&((d.high-d.low)>.1*range20)
-        short=(ret10>.001)&(d.high>priorhigh)&(d.close<priorhigh)&((d.high-d.low)>.1*range20)
-        d['signal']=np.select([long,short],[1,-1],0)
-        d['reason']='failed extension / reversal candidate'
-    else:
-        raise ValueError(f'Unknown strategy {method}')
-    # Wait until the first 30 minutes; no new entries after 14:45.
-    d.loc[(d.minute<9*60+45)|(d.minute>14*60+45),'signal']=0
-    return d
+    return signals(prepare(df), method)

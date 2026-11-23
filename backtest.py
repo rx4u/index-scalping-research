@@ -1,90 +1,108 @@
-"""Conservative single-position bar-based research runner; NOT an option backtest.
-
-Signals on close(t); fills at next open(t+1), if same exchange session.
-Stops/targets checked on subsequent bars; stop takes precedence if both touched.
-Gap through stop fills at worse opening price; no trade execution at signal candle.
-"""
+"""Index-point screening with conservative OHLC execution."""
 import argparse
+
+import numpy as np
 import pandas as pd
-from strategies import generate
 
-METHODS=['noise_band','momentum','exhaustion']
+from strategies import METHODS, prepare, signals
 
-def run(df, strategy, stop_atr=1.0, target_r=1.5, cost_points=0.0, max_trades=2):
-    d=generate(df,strategy)
-    trades=[]; last_session=None; count=0; i=0
-    while i<len(d)-1:
-        r=d.iloc[i]
-        if r.session!=last_session:
-            last_session=r.session;count=0
-        if count>=max_trades or r.signal==0 or pd.isna(r.atr) or r.atr<=0:
-            i+=1;continue
-        nextbar=d.iloc[i+1]
-        if nextbar.session!=r.session:
-            i+=1;continue
-        direction=int(r.signal); entry=float(nextbar.open)
-        risk=float(r.atr)*stop_atr
-        sl=entry-direction*risk
-        tp=entry+direction*risk*target_r
-        # From entry bar: conservative if stop/target same bar. No entry at signal close.
-        exit_px=None; exit_time=None; exit_reason=None
-        j=i+1
-        while j<len(d):
-            b=d.iloc[j]
-            if b.session!=r.session:
-                # Last same-day bar exited at previous close (no overnight holding).
-                prev=d.iloc[j-1];exit_px=float(prev.close);exit_time=prev.date;exit_reason='session_end';break
-            hit_sl=(b.low<=sl) if direction==1 else (b.high>=sl)
-            hit_tp=(b.high>=tp) if direction==1 else (b.low<=tp)
-            if hit_sl:
-                # Gap-open worse than stop: model worse fill.
-                exit_px=min(sl,float(b.open)) if direction==1 else max(sl,float(b.open))
-                exit_reason='stop'
-            elif hit_tp:
-                exit_px=tp;exit_reason='target'
-            elif b.minute>=15*60+15:
-                exit_px=float(b.close);exit_reason='time_exit'
-            if exit_px is not None:
-                exit_time=b.date;break
-            j+=1
-        if exit_px is None:
-            b=d.iloc[-1];exit_px=float(b.close);exit_time=b.date;exit_reason='data_end'
-        gross=(exit_px-entry)*direction
-        trades.append({'strategy':strategy,'session':str(r.session),'signal_time':str(r.date),
-                       'entry_time':str(nextbar.date),'exit_time':str(exit_time),
-                       'side':'LONG' if direction==1 else 'SHORT','entry':round(entry,4),
-                       'stop':round(sl,4),'target':round(tp,4),'exit':round(exit_px,4),
-                       'reason':exit_reason,'gross_points':round(gross,4),
-                       'net_points':round(gross-cost_points,4),'R_net':round((gross-cost_points)/risk,4)})
-        count+=1
-        # block entering same exit bar (next signal starts after completed exit bar)
-        i=max(j+1,i+2)
-    return pd.DataFrame(trades)
+COLUMNS = ["strategy", "session", "signal_time", "entry_time", "exit_time", "side",
+           "signal_close", "entry", "stop", "target", "exit", "reason", "gross_points", "net_points",
+           "R_net", "turnover", "holding_seconds"]
 
-def summary(trades):
-    if trades.empty:
-        return {'trades':0,'win_rate':None,'avg_net_points':None,'net_points':None,'profit_factor':None,'max_drawdown_points':None}
-    pnl=trades.net_points
-    equity=pnl.cumsum()
-    pos=pnl[pnl>0].sum();neg=-pnl[pnl<0].sum()
-    return {'trades':len(trades),'win_rate':round(100*(pnl>0).mean(),2),
-            'avg_net_points':round(pnl.mean(),3),'net_points':round(pnl.sum(),3),
-            'profit_factor':round(float(pos/neg),3) if neg>0 else None,
-            'max_drawdown_points':round(float((equity.cummax().clip(lower=0)-equity).max()),3)}
+
+def exit_bar(bar, side, stop, target):
+    if side * (bar.open - stop) <= 0:
+        return bar.open, bar.date, "stop_gap"
+    if side * (bar.open - target) >= 0:
+        return target, bar.date, "target_gap"
+    if (bar.low <= stop if side == 1 else bar.high >= stop):
+        return stop, bar.available, "stop"
+    if (bar.high >= target if side == 1 else bar.low <= target):
+        return target, bar.available, "target"
+    if bar.available.hour * 60 + bar.available.minute >= 915:
+        return bar.close, bar.available, "time_exit"
+    return None
+
+
+def simulate(data, strategy, stop_atr=1.0, target_r=1.5, cost_points=0.0, max_trades=2):
+    if not np.isfinite([stop_atr, target_r, cost_points]).all() or min(stop_atr, target_r) <= 0 or cost_points < 0 or max_trades < 1:
+        raise ValueError("Invalid execution assumptions")
+    trades = []
+    for session, rows in data.groupby("session", sort=False):
+        bars = list(rows.itertuples(index=False))
+        count, i = 0, 0
+        while i < len(bars) - 1 and count < max_trades:
+            signal, entry = bars[i:i + 2]
+            i += 1
+            if not signal.signal or not np.isfinite(signal.atr) or signal.atr <= 0 or entry.date != signal.available:
+                continue
+            side, risk = int(signal.signal), stop_atr * signal.atr
+            stop, target = entry.open - side * risk, entry.open + side * risk * target_r
+            for j in range(i, len(bars)):
+                result = exit_bar(bars[j], side, stop, target)
+                if result is not None:
+                    break
+            else:
+                raise ValueError("Session has no executable exit")
+            fill, time, reason = result
+            gross = side * (fill - entry.open)
+            trades.append((strategy, session, signal.available, entry.date, time,
+                           "LONG" if side == 1 else "SHORT", signal.close, entry.open, stop, target, fill, reason,
+                           gross, gross - cost_points, (gross - cost_points) / risk,
+                           entry.open + fill, (time - entry.date).total_seconds()))
+            count += 1
+            i = j + 1
+    return pd.DataFrame(trades, columns=COLUMNS)
+
+
+def run(df, strategy, stop_atr=1., target_r=1.5, cost_points=0., max_trades=2):
+    return simulate(signals(prepare(df), strategy), strategy, stop_atr, target_r, cost_points, max_trades)
+
+
+def summary(trades, sessions=None, seed=20261123, alpha=.05):
+    pnl = trades.net_points.astype(float)
+    count = len(pnl)
+    pos, neg = pnl[pnl > 0].sum(), -pnl[pnl < 0].sum()
+    equity = np.r_[0., pnl.cumsum()]
+    result = {"sessions": None if sessions is None else len(sessions), "trades": count,
+              "trades_per_day": count / len(sessions) if sessions is not None and len(sessions) else None,
+              "net_points": float(pnl.sum()), "win_rate_pct": 100 * (pnl > 0).mean() if count else None,
+              "net_expectancy": pnl.mean() if count else None,
+              "gross_expectancy": trades.gross_points.mean() if count else None,
+              "profit_factor": pos / neg if neg else None,
+              "max_drawdown": float((np.maximum.accumulate(equity) - equity).max()),
+              "median_holding_seconds": trades.holding_seconds.median() if count else None,
+              "trade_p05": pnl.quantile(.05) if count else None,
+              "worst_trade": pnl.min() if count else None, "turnover": float(trades.turnover.sum()),
+              "bootstrap_low": None, "bootstrap_high": None}
+    if sessions is not None and len(sessions) >= 20 and count >= 20:
+        daily = trades.groupby("session").net_points.agg(["sum", "size"]).reindex(sessions, fill_value=0).to_numpy()
+        # Sample adjacent blocks to retain short-horizon session dependence.
+        rng = np.random.default_rng(seed)
+        length = len(daily)
+        starts = rng.integers(0, length, (4000, (length + 4) // 5, 1))
+        sample = daily[((starts + np.arange(5)) % length).reshape(4000, -1)[:, :length]].sum(axis=1)
+        valid = sample[:, 1] > 0
+        result["bootstrap_low"], result["bootstrap_high"] = np.quantile(
+            sample[valid, 0] / sample[valid, 1], [alpha / 2, 1 - alpha / 2])
+    return result
+
 
 def main():
-    p=argparse.ArgumentParser()
-    p.add_argument('--csv',required=True,help='Underlying 1m CSV with date,open,high,low,close')
-    p.add_argument('--cost-points',type=float,default=1.,help='ROUND TRIP index points, proxy only')
-    p.add_argument('--out',default='results')
-    a=p.parse_args()
-    df=pd.read_csv(a.csv)
-    rows=[]
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--csv", required=True)
+    parser.add_argument("--cost-points", type=float, default=1.)
+    parser.add_argument("--out", default="results")
+    args = parser.parse_args()
+    data = prepare(pd.read_csv(args.csv))
+    rows = []
     for method in METHODS:
-        t=run(df,method,cost_points=a.cost_points)
-        t.to_csv(f'{a.out}_{method}_trades.csv',index=False)
-        rows.append({'strategy':method,**summary(t)})
-    s=pd.DataFrame(rows);s.to_csv(f'{a.out}_summary.csv',index=False)
-    print(s.to_string(index=False))
+        trades = simulate(signals(data, method), method, cost_points=args.cost_points)
+        trades.to_csv(f"{args.out}_{method}_trades.csv", index=False)
+        rows.append(dict(strategy=method, **summary(trades, data.session.unique())))
+    pd.DataFrame(rows).to_csv(f"{args.out}_summary.csv", index=False)
 
-if __name__=='__main__': main()
+
+if __name__ == "__main__":
+    main()

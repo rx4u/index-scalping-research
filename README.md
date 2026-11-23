@@ -1,54 +1,54 @@
-# Nifty / Sensex intraday strategy research, v0.1
+# Nifty and Sensex intraday research
 
-**Status:** Runnable research code. Not an independently verified profitable trading system. No live orders. No option backtest. No fabricated performance claims.
+The fixed held-out index screen failed for all tested candidates at the reference stress. Five- and fifteen-second options profitability is **INSUFFICIENT DATA**. This repository contains historical analysis and no order-placement code. See the [research report](docs/research.md) and [evidence](evidence/).
 
-## Setup
+## Reproduce the public-data run
+
+Use Python 3.11 or 3.12 and run from the repository root. This workflow downloads free, pinned files, verifies their SHA-256 checksums, runs both index studies and the CE/PE premium comparison, and builds the offline dashboard. It uses no broker credentials.
 
 ```bash
-python3 -m venv .venv
+python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
+python run_public.py
 ```
 
-## Get underlying minute data from Zerodha
+Open `reports/dashboard.html` in a browser. It works offline and includes filterable index metrics, cumulative P&L, trade detail and provenance. Cached inputs live under `data/public`. Use `--cache` and `--out` to choose different directories. To download the report built by GitHub Actions, open the **Public data research** workflow run and download **public-research-report** from its Artifacts section.
 
-Create Kite Connect credentials at https://developers.kite.trade/ . Set credentials in your **local terminal** (never share keys with anyone or paste into chat).
+To run your own index inputs, copy `config.example.json`, update the paths and date ranges, and call `python research.py --config <path>`. CSV imports require minute **opening** timestamps in `date` or `timestamp` and `open,high,low,close` columns. Naive timestamps default to Asia/Kolkata. To flag absent regular sessions, supply a `calendar` CSV with a `session` column of exchange dates. Paths are relative to the shell's working directory.
+
+## Zerodha Connect setup
+
+1. In the [Kite developer console](https://developers.kite.trade/), select **Connect** for historical candles and live market-data WebSocket access. The app form displays the current credit cost. Enter app name **Index Scalping Research**, your Zerodha Client ID, Redirect URL `http://127.0.0.1:8000/callback`, and description **Historical index candles and market-data replay for research**. Leave Postback URL and icon blank. Connect includes brokerage API capabilities at the platform level. This repository calls historical market data and the session exchange only.
+2. In your own local Bash terminal, enter the API key without echoing it. Run the command below and enter your API secret at its hidden prompt. Open the Kite login URL in your browser, sign in, then paste the redirected URL or its request token into the hidden prompt. The callback may display a connection error with the URL still visible. Complete this promptly because the request token is short-lived. Keep the API key, secret, request token and access token in your local environment or hidden input. [Desktop redirects](https://kite.trade/docs/connect/v3/apps/) · [Login and token exchange](https://kite.trade/docs/connect/v3/user/)
+3. Start with a short historical download. Use 2026-11-16–2026-11-20, for example. Swap the symbol/output to download the other index. If your local workflow already provides an access token, export `KITE_ACCESS_TOKEN` through your local secret manager or hidden prompt and omit `--login`. The token normally expires at 06:00 IST the following day.
 
 ```bash
-export KITE_API_KEY='YOUR_LOCAL_KEY'
-export KITE_ACCESS_TOKEN='YOUR_LOCAL_TOKEN'
-python kite_download.py --symbol 'NIFTY 50' --from-date 2026-01-01 --to-date 2026-11-20 --output nifty_1m.csv
-python kite_download.py --symbol 'SENSEX' --from-date 2026-01-01 --to-date 2026-11-20 --output sensex_1m.csv
+read -rsp 'Kite API key: ' KITE_API_KEY
+export KITE_API_KEY
+printf '\n'
+python kite_download.py --login --symbol 'NIFTY 50' --from-date 2026-11-16 --to-date 2026-11-20 --output data/nifty_1m.csv
+python kite_download.py --login --symbol SENSEX --from-date 2026-11-16 --to-date 2026-11-20 --output data/sensex_1m.csv
+unset KITE_API_KEY KITE_API_SECRET KITE_ACCESS_TOKEN
 ```
 
-If an index token is unavailable in your instrument list, supply an independently obtained `date,open,high,low,close` CSV and skip the downloader. Kite historical minute data is not historical option tick data. Expired derivatives contracts are not generally reconstructed through the continuous-minute API.
+Use the downloads by replacing the `csv` paths and source labels in a local copy of the config and setting appropriate split dates. Each download writes its own JSON sidecar with range, exchange, token identifier, coverage and hash.
 
-## Run research proxies
+## Exchange quote and tick replay
+
+Prepare two CSVs, preferably with ISO 8601 timestamps and explicit offsets.
+
+| Input | Required columns |
+|---|---|
+| Contracts | `contract,instrument,option_type,strike,listed_at,expires_at,lot_size,tick_size` |
+| Quotes | `contract,date,bid,ask,bid_size,ask_size` |
+| Last-trade tick export | `instrument,date,sequence,price` |
+
+Contract IDs must uniquely identify an exchange series, including strike and exact expiry. Use the same underlying symbol strings as the config, CE or PE, and quote sizes in units. Supply the actual contract existence times from the historical master. Normalize multiple events at the same timestamp into an explicitly ordered snapshot upstream. Preserve the raw event log and event-time resolution. Do not forward-fill missing depth or build quotes from OHLC. Give the replay a single exchange and fee period per run. Slice `index_trades.csv` to the intended instrument, date range, phase and documented test before replay. Run both 5 and 15 seconds to compare, using the same holdout. The engine emits a status per signal including missing contracts, unfilled entries and unresolved exits. For verified results use an audited spread/depth feed and evaluate unresolved positions in the denominator.
 
 ```bash
-python backtest.py --csv nifty_1m.csv --cost-points 1.5 --out nifty
-python backtest.py --csv sensex_1m.csv --cost-points 5 --out sensex
+python tick_bars.py --input data/trade_ticks.csv --archive data/normalized_ticks.csv --out data/bars_5s.csv --seconds 5
+python options.py --schedule data/selected_index_trades.csv --contracts data/contracts.csv --quotes data/quotes.csv --seconds 5 --exchange-rate 0.0003553 --stt-rate 0.0015 --out reports/nifty_replay_5s.csv
 ```
 
-These are **UNDERLYING POINTS ONLY**, not option rupees/P&L; `--cost-points` is a hypothetical cost stress test in index points, not a correct brokerage model. Do not convert them into option profits or trade the signals directly. The reported summaries are in-sample descriptive outcomes; split chronologically for out-of-sample evaluation.
-
-The three candidate rules (not asserted to reproduce research papers exactly):
-
-1. `noise_band`: at each minute, prior 14 sessions' rolling mean absolute move from that session's open at the same minute; breakout above/below today's open +/- historical normalised move. Requires 10 prior sessions. Entry next bar open.
-2. `momentum`: 3-bar and 12-bar same-session return have same sign; close breaks preceding 8 completed bars' high/low. Entry next bar open.
-3. `exhaustion`: directional prior 10-bar move, failed breakout of prior candle extreme, and minimum range condition. Countertrend candidate, **speculative**.
-
-Single position at a time; max 2 entries per session; entries 09:45–14:45 IST; default 1x ATR20 stop, 1.5R target, exit by 15:15; hard stop wins if both target and stop hit in same bar. Fill next bar open. No intrabar future knowledge is used when forming signals. The ATR includes the completed signal candle. Stop fill is conservatively adjusted for gaps but **not** for microstructure slippage. No optimisation is conducted in this version.
-
-## Before considering live signals
-
-- Acquire timestamped historical CE/PE quotes or tick/bid-ask data with contract expiry and strike identifiers, ideally multiple years. Zerodha historical 1-minute index candles cannot verify 5/15-second option P&L.
-- Backtest actual option contracts, realistic fills, fees, taxes, spread, slippage, and liquidity; paper-forward test.
-- Split chronologically (development, validation, untouched test), compare to simple/no-trade baselines, and measure drawdowns and profitability stability.
-- Implement actual MLMI formula only if the original algorithm and configuration can be verified.
-- Implement safeguards and execution monitoring before any automation. Never use live order placement in v0.1.
-
-## Official API references
-- https://kite.trade/docs/connect/v3/historical/
-- https://kite.trade/docs/connect/v3/websocket/
-- https://kite.trade/docs/pykiteconnect/v4/
+The sample rate flags are for NSE options at the post-April-2026 schedule used in the proxy. Use the period-appropriate values for a real tape and reconcile against contract notes. The quote mode replays an underlying-derived schedule, with its bar-level stop trigger resolution. Minute premium proxies have their own clearly labeled report.

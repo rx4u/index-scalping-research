@@ -1,0 +1,24 @@
+test_extra_trades_cannot_replace_session_history (test_forward_check.ForwardCheckTests.test_extra_trades_cannot_replace_session_history) ... ok
+test_first_date_meeting_both_thresholds (test_forward_check.ForwardCheckTests.test_first_date_meeting_both_thresholds) ... ok
+test_gao_uses_prior_close_and_only_trades_final_half_hour (test_paper_rules.PaperRuleTests.test_gao_uses_prior_close_and_only_trades_final_half_hour) ... ok
+test_noise_reverses_only_at_clock_boundary_and_flattens_at_close (test_paper_rules.PaperRuleTests.test_noise_reverses_only_at_clock_boundary_and_flattens_at_close) ... ok
+test_bad_download_is_not_saved (test_public_data.PublicDownloadTests.test_bad_download_is_not_saved) ... ok
+test_verifies_download_and_reuses_cache (test_public_data.PublicDownloadTests.test_verifies_download_and_reuses_cache) ... ok
+test_cost_metrics_and_partitions (test_research.IndexTests.test_cost_metrics_and_partitions) ... ok
+test_gap_and_missing_calendar_day_are_counted (test_research.IndexTests.test_gap_and_missing_calendar_day_are_counted) ... ok
+test_gap_precedes_intrabar_range (test_research.IndexTests.test_gap_precedes_intrabar_range) ... ok
+test_no_fill_across_gap_and_entry_bar_stop_is_causal (test_research.IndexTests.test_no_fill_across_gap_and_entry_bar_stop_is_causal) ... ok
+test_noise_needs_fourteen_previous_sessions (test_research.IndexTests.test_noise_needs_fourteen_previous_sessions) ... ok
+test_reject_duplicate_nan_and_impossible_ohlc (test_research.IndexTests.test_reject_duplicate_nan_and_impossible_ohlc) ... ok
+test_signals_do_not_change_on_future_price_mutation (test_research.IndexTests.test_signals_do_not_change_on_future_price_mutation) ... ok
+test_utc_alignment_and_three_minute_open_close (test_research.IndexTests.test_utc_alignment_and_three_minute_open_close) ... ok
+test_read_only_kite_download_and_local_exchange (test_research.KiteTests.test_read_only_kite_download_and_local_exchange) ... ok
+test_fifteen_seconds_and_missing_exit (test_research.OptionTests.test_fifteen_seconds_and_missing_exit) ... ok
+test_latency_spread_charges_and_partial_depth (test_research.OptionTests.test_latency_spread_charges_and_partial_depth) ... ok
+test_no_future_quote_contract_or_spread (test_research.OptionTests.test_no_future_quote_contract_or_spread) ... ok
+test_tick_boundary_and_sequence (test_research.OptionTests.test_tick_boundary_and_sequence) ... ok
+
+----------------------------------------------------------------------
+Ran 19 tests in 0.724s
+
+OK

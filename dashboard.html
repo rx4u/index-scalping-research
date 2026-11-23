@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nifty and Sensex Strategy Research</title>
+<style>
+:root{color-scheme:light;--ink:#102b30;--muted:#4c6264;--line:#d6e0db;--paper:#fff;--accent:#006757}
+*{box-sizing:border-box}body{margin:0;background:#f3f6f3;color:var(--ink);font:15px/1.5 system-ui,sans-serif}
+main{max-width:1340px;margin:auto;padding:36px clamp(16px,4vw,56px)}header{border-bottom:2px solid var(--ink);padding-bottom:20px;margin-bottom:22px}
+h1,h2,p{margin:0}h1{font-size:clamp(30px,5vw,56px);letter-spacing:-.06em;line-height:1.06;margin-bottom:9px}h2{font-size:21px;margin-bottom:10px}
+p{color:var(--muted)}section,details{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:19px;margin:14px 0}
+.filters{display:flex;flex-wrap:wrap;gap:12px;align-items:end}label{display:grid;gap:4px;font-weight:650;color:var(--muted)}
+select,button{font:inherit;color:var(--ink);background:white;border:1px solid #9bafab;border-radius:7px;padding:6px 11px}
+button:disabled{opacity:.5}button,select,summary{cursor:pointer}.scroll{overflow:auto}table{border-collapse:collapse;width:100%;white-space:nowrap;font-variant-numeric:tabular-nums}
+th,td{padding:7px 10px;border-bottom:1px solid var(--line);text-align:right}th{color:var(--muted);font-size:12px}td:first-child,th:first-child{text-align:left}
+.bad{color:#9f352b;font-weight:700}.good{color:var(--accent);font-weight:700}.muted{color:var(--muted)}
+canvas{width:100%;height:190px;display:block}.pages{display:flex;gap:10px;align-items:center;margin-top:12px}
+summary{font-weight:700}pre{white-space:pre-wrap;overflow-wrap:anywhere}
+</style>
+</head>
+<body>
+<main>
+<header><h1>Nifty and Sensex Strategy Research</h1><p id="coverage"></p></header>
+<section class="filters" aria-label="Result filters">
+<label>Index<select id="instrument"></select></label><label>Signal interval<select id="minutes"></select></label>
+<label>Period<select id="phase"></select></label><label>Round-trip cost (bp)<select id="cost"></select></label>
+<label>Trade strategy<select id="strategy"></select></label>
+</section>
+<section><h2>Index strategy comparison</h2><p>Net results use a hypothetical index-point cost. The screen uses adjusted bootstrap intervals on the held-out test.</p><div class="scroll" id="metrics"></div></section>
+<section><h2>Cumulative net index points</h2><p id="chartLabel"></p><canvas id="chart" role="img" aria-label="Cumulative net index points by trade"></canvas></section>
+<section><h2>Index trades</h2><div class="scroll" id="trades"></div><div class="pages"><button id="prev">Previous</button><span id="page"></span><button id="next">Next</button></div></section>
+<section><h2>CE/PE execution evidence</h2><p><strong>INSUFFICIENT DATA</strong> for 5- and 15-second fills. The minute-candle study uses historical CE/PE opens with modeled friction.</p>
+<div class="scroll" id="options"></div><details><summary>Option trade sample</summary><div class="scroll" id="optionTrades"></div></details></section>
+<section><h2>Published-rule follow-up</h2><p>Exploratory spot-index results on reused test dates. Uses the selected index and cost.</p><div class="scroll" id="paper"></div></section>
+<section><h2>Noise-band forward check</h2><p>The archive extension predates the rule freeze. The prospective check starts 24 November 2026.</p><div class="scroll" id="forward"></div></section>
+<details><summary>Data provenance and run configuration</summary><pre id="provenance"></pre></details>
+</main>
+<script>
+const data = /*REPORT_DATA*/null;
+if (!data) throw Error("Run dashboard.py to embed the report");
+const el = id => document.getElementById(id);
+const number = x => x == null ? "—" : typeof x === "number" ? x.toLocaleString("en-IN", {maximumFractionDigits: 3}) : x;
+function choices(id, values, preferred) {
+  const select = el(id);
+  select.replaceChildren(...[...new Set(values)].map(x => new Option(x, x)));
+  if ([...select.options].some(option => option.value === String(preferred))) select.value = preferred;
+}
+function table(id, rows, columns) {
+  const region = el(id);
+  region.replaceChildren();
+  if (!rows.length) { region.textContent = "No rows for this selection."; return; }
+  const grid = document.createElement("table");
+  const header = grid.createTHead().insertRow();
+  for (const [,label] of columns) {
+    const th = document.createElement("th"); th.scope = "col"; th.textContent = label; header.append(th);
+  }
+  const body = grid.createTBody();
+  for (const row of rows) {
+    const line = body.insertRow();
+    for (const [key] of columns) {
+      const td = line.insertCell();
+      td.textContent = number(row[key]);
+      if (row[key] === "FAIL") td.className = "bad";
+      if (row[key] === "PASS") td.className = "good";
+    }
+  }
+  region.append(grid);
+}
+const config = data.manifest.configuration;
+el("coverage").textContent = `Public minute-bar research · ${config.start} to ${config.end}`;
+el("provenance").textContent = JSON.stringify(data.manifest, null, 2);
+choices("instrument", data.metrics.map(x=>x.instrument), "NIFTY 50");
+choices("minutes", data.metrics.map(x=>x.minutes), 1);
+choices("phase", data.metrics.map(x=>x.phase), "test");
+choices("cost", data.metrics.map(x=>x.cost_bps), config.reference_bps);
+choices("strategy", data.metrics.map(x=>x.strategy), "noise_band");
+let page = 0;
+const perPage = 18;
+function chart(trades) {
+  const canvas = el("chart"), ctx = canvas.getContext("2d");
+  const ratio = window.devicePixelRatio || 1, w = canvas.clientWidth, h = canvas.clientHeight;
+  canvas.width = w * ratio; canvas.height = h * ratio; ctx.scale(ratio, ratio);
+  if (!trades.length) return;
+  const equity = [0];
+  trades.forEach(x => equity.push(equity.at(-1) + x.net_points));
+  const lo = Math.min(...equity), hi = Math.max(...equity);
+  const y = n => 12 + (hi - n) / (hi - lo || 1) * (h - 28);
+  ctx.strokeStyle = "#d6e0db"; ctx.beginPath(); ctx.moveTo(53,y(0)); ctx.lineTo(w-6,y(0)); ctx.stroke();
+  ctx.fillStyle = "#4c6264"; ctx.font = "12px system-ui";
+  ctx.fillText(number(hi), 2, 13); if (lo !== hi) ctx.fillText(number(lo), 2, h-7);
+  ctx.strokeStyle = "#006757"; ctx.lineWidth = 2; ctx.beginPath();
+  equity.forEach((n,i) => {
+    const x = 53 + i / (equity.length - 1) * (w - 59);
+    if (i) ctx.lineTo(x,y(n)); else ctx.moveTo(x,y(n));
+  });
+  ctx.stroke();
+}
+function render() {
+  const instrument = el("instrument").value, minutes = Number(el("minutes").value);
+  const phase = el("phase").value, cost = Number(el("cost").value), strategy = el("strategy").value;
+  const matches = x => x.instrument === instrument && x.minutes === minutes;
+  table("metrics", data.metrics.filter(x => matches(x) && x.phase === phase && x.cost_bps === cost)
+    .sort((a,b) => b.net_points-a.net_points), [["strategy","Strategy"],["factor","Parameter"],["index_screen","Screen"],
+    ["sessions","Sessions"],["trades","Trades"],["win_rate_pct","Win %"],["net_points","Net pts"],["net_expectancy","Pts / trade"],
+    ["profit_factor","Profit factor"],["max_drawdown","Drawdown"],["bootstrap_low","CI low"],["bootstrap_high","CI high"]]);
+  const trades = data.trades.filter(x => matches(x) && x.phase === phase && x.strategy === strategy)
+    .map(x => ({...x, net_points: x.gross_points - x.turnover * cost / 20000}));
+  const pages = Math.max(1,Math.ceil(trades.length / perPage));
+  page = Math.min(page,pages-1);
+  el("chartLabel").textContent = trades.length ? `${trades.length} trades · ${number(trades.reduce((sum,x)=>sum+x.net_points,0))} net points` :
+    "Trade detail is available for the fixed development, validation and test configurations.";
+  chart(trades);
+  table("trades",trades.slice(page*perPage,(page+1)*perPage),[["entry_time","Entry (IST)"],["exit_time","Exit (IST)"],["side","Side"],["entry","Entry"],["exit","Exit"],["reason","Exit reason"],["gross_points","Gross pts"],["net_points","Net pts"]]);
+  el("page").textContent = `Page ${page+1} of ${pages}`; el("prev").disabled = page===0; el("next").disabled=page+1>=pages;
+  table("forward", data.forward.filter(x => x.instrument === instrument && x.cost_bps === cost),
+    [["phase","Period"],["status","Status"],["sessions","Sessions"],["trades","Trades"],["net_points","Net points"]]);
+  table("paper", data.paper.filter(x => x.instrument === instrument && x.cost_bps === cost && x.period === "reused_test"),
+    [["strategy","Rule"],["sessions","Sessions"],["trades","Trades"],["net_points","Net points"],
+     ["net_expectancy","Points per trade"],["bootstrap_low","CI low"],["bootstrap_high","CI high"]]);
+  table("options",data.options.filter(matches),[["strategy","Strategy"],["attempts","Attempts"],["closed","Closed"],["friction_bps","Friction / side (bp)"],["net_inr","Proxy net ₹"]]);
+  table("optionTrades",data.optionTrades.filter(x=>matches(x)&&x.strategy===strategy).slice(0,25),
+    [["session","Session"],["option_type","Type"],["strike","Strike"],["expiry","Expiry"],["status","Status"],
+     ["entry_open","Entry open"],["exit_open","Exit open"],["net_inr","Proxy net ₹"]]);
+}
+document.querySelectorAll("select").forEach(x=>x.addEventListener("change",()=>{page=0;render();}));
+el("prev").onclick=()=>{page--;render();}; el("next").onclick=()=>{page++;render();};
+window.addEventListener("resize",render);render();
+</script>
+</body>
+</html>
