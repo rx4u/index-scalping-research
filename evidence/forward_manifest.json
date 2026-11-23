@@ -1,0 +1,42 @@
+{
+  "NIFTY 50": {
+    "sha256": {
+      "NIFTY50_1min_2026-09.csv": "489c95b84e7f9fb7e90c80cd09e9410949c8f0eb5e48508c4fe7ccd0d15bd93a",
+      "NIFTY50_1min_2026-10.csv": "86ddc06c9d448eb3867600a408386509d5628d25114a6d9faaef83018314cbf3",
+      "NIFTY50_1min_2026-11.csv": "3a3c6bf964e8ed789eebbd0d0711a9f791b03f482b7637a1ae010973f4c92461"
+    },
+    "source": "https://github.com/technovusin/nifty50-historical-data",
+    "revision": "dfbd420e5f0b0d336c332602836ab37b7a1ea7dd",
+    "coverage": {
+      "expected": 56,
+      "complete": 55,
+      "excluded": [
+        "2026-11-08"
+      ],
+      "outside_calendar": []
+    },
+    "prospective_sessions": 0,
+    "prospective_trades": 0,
+    "prospective_milestone": null
+  },
+  "SENSEX": {
+    "sha256": {
+      "SENSEX_1min_2026-09.csv": "7930f04e9ec445e056e2d72977ceff82e4a2ae98149b6290057dd05ce2904e43",
+      "SENSEX_1min_2026-10.csv": "990038924bde81069cdf96fd367d3f2b572fdada7bfc0b19048837fcf1809de3",
+      "SENSEX_1min_2026-11.csv": "59f0992773e6683acab543066b083f1081d3ce7d72b662a1075bb628b12e8995"
+    },
+    "source": "https://github.com/technovusin/sensex-historical-data",
+    "revision": "f75fb1ee2f5ff53188f005b0d6ef16307a51cb30",
+    "coverage": {
+      "expected": 56,
+      "complete": 55,
+      "excluded": [
+        "2026-11-08"
+      ],
+      "outside_calendar": []
+    },
+    "prospective_sessions": 0,
+    "prospective_trades": 0,
+    "prospective_milestone": null
+  }
+}

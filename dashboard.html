@@ -33,6 +33,7 @@ summary{font-weight:700}pre{white-space:pre-wrap;overflow-wrap:anywhere}
 <section><h2>CE/PE execution evidence</h2><p><strong>INSUFFICIENT DATA</strong> for 5- and 15-second fills. The minute-candle study uses historical CE/PE opens with modeled friction.</p>
 <div class="scroll" id="options"></div><details><summary>Option trade sample</summary><div class="scroll" id="optionTrades"></div></details></section>
 <section><h2>Published-rule follow-up</h2><p>Exploratory spot-index results on reused test dates. Uses the selected index and cost.</p><div class="scroll" id="paper"></div></section>
+<section><h2>Noise-band forward check</h2><p>The archive extension predates the rule freeze. The prospective check starts 24 November 2026.</p><div class="scroll" id="forward"></div></section>
 <details><summary>Data provenance and run configuration</summary><pre id="provenance"></pre></details>
 </main>
 <script>
@@ -112,6 +113,8 @@ function render() {
   chart(trades);
   table("trades",trades.slice(page*perPage,(page+1)*perPage),[["entry_time","Entry (IST)"],["exit_time","Exit (IST)"],["side","Side"],["entry","Entry"],["exit","Exit"],["reason","Exit reason"],["gross_points","Gross pts"],["net_points","Net pts"]]);
   el("page").textContent = `Page ${page+1} of ${pages}`; el("prev").disabled = page===0; el("next").disabled=page+1>=pages;
+  table("forward", data.forward.filter(x => x.instrument === instrument && x.cost_bps === cost),
+    [["phase","Period"],["status","Status"],["sessions","Sessions"],["trades","Trades"],["net_points","Net points"]]);
   table("paper", data.paper.filter(x => x.instrument === instrument && x.cost_bps === cost && x.period === "reused_test"),
     [["strategy","Rule"],["sessions","Sessions"],["trades","Trades"],["net_points","Net points"],
      ["net_expectancy","Points per trade"],["bootstrap_low","CI low"],["bootstrap_high","CI high"]]);

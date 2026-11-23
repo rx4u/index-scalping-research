@@ -5,6 +5,7 @@ import json
 import shutil
 import subprocess
 import sys
+from copy import deepcopy
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -43,18 +44,25 @@ def run(cache, out):
     manifest = read_json(EVIDENCE / "manifest.json")
     config = manifest["configuration"]
     tasks = []
+    followup = deepcopy(config)
     for instrument, spec in config["instruments"].items():
         repository = spec["source"].removeprefix("https://github.com/")
         base = f"https://raw.githubusercontent.com/{repository}/{spec['revision']}"
         # Include only files intersecting the fixed study window.
         directory = cache / spec["revision"]
         spec["csv"] = []
+        forward_paths = followup["instruments"][instrument]["csv"] = []
         for name, checksum in manifest["inputs"][instrument]["sha256"].items():
             period = name.removesuffix(".csv").rsplit("_", 1)[-1]
-            if period < config["start"][:len(period)] or period > config["end"][:len(period)]:
-                continue
             path = directory / name
-            spec["csv"].append(str(path))
+            original_window = config["start"][:len(period)] <= period <= config["end"][:len(period)]
+            forward_window = "2026-09" <= period <= "2026-11"
+            if original_window:
+                spec["csv"].append(str(path))
+            if forward_window:
+                forward_paths.append(str(path))
+            if not (original_window or forward_window):
+                continue
             tasks.append((f"{base}/1min/{period[:4]}/{name}", path, checksum))
     options = read_json(EVIDENCE / "option_proxy_manifest.json")
     check = read_json(EVIDENCE / "source_crosscheck.json")
@@ -73,12 +81,15 @@ def run(cache, out):
     out.mkdir(parents=True, exist_ok=True)
     config_path = out / "public_config.json"
     config_path.write_text(json.dumps(config, indent=2) + "\n")
+    forward_config = out / "forward_config.json"
+    forward_config.write_text(json.dumps(followup, indent=2) + "\n")
     commands = [
         ("research.py", "--config", config_path, "--out", out),
         ("option_proxy.py", "--reports", out, "--inputs", cache),
         ("source_crosscheck.py", "--config", config_path, "--inputs", cache,
          "--out", out / "source_crosscheck.json"),
         ("paper_rules.py", "--config", config_path, "--out", out),
+        ("forward_check.py", "--config", forward_config, "--out", out),
         ("dashboard.py", "--reports", out, "--out", out / "dashboard.html"),
     ]
     for script, *args in commands:
