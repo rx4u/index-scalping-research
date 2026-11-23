@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+.env.*
+!.env.example
+*_1m.csv
+*_trades.csv
+*_summary.csv
+data/
+reports/
