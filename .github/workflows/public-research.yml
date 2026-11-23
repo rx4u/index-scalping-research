@@ -7,6 +7,7 @@ on:
       - .github/workflows/public-research.yml
       - run_public.py
       - research.py
+      - paper_rules.py
 jobs:
   reproduce:
     runs-on: ubuntu-latest

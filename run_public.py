@@ -78,6 +78,7 @@ def run(cache, out):
         ("option_proxy.py", "--reports", out, "--inputs", cache),
         ("source_crosscheck.py", "--config", config_path, "--inputs", cache,
          "--out", out / "source_crosscheck.json"),
+        ("paper_rules.py", "--config", config_path, "--out", out),
         ("dashboard.py", "--reports", out, "--out", out / "dashboard.html"),
     ]
     for script, *args in commands:

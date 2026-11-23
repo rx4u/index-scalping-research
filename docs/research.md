@@ -64,3 +64,20 @@ The exploratory options run uses real archived 1-minute CE/PE prints from four M
 **INSUFFICIENT DATA for 5-second and 15-second execution on both indices and signal intervals.** The 15-second public spot candles are observations of the index. They cannot identify option spread, depth or executable fills. The quote replay requires historical exchange timestamps, best bid/ask plus displayed size at sufficient granularity, and a point-in-time listed-contract master with exact expiry, strike, lot and tick size. It models latency, spread gate, entry at ask, exit at bid, adverse tick slippage, brokerage/taxes and partial fills. Unresolved exits stay explicitly unresolved. It models displayed liquidity, with no queue, exchange acknowledgement or time-of-flight calibration. Data capture and replay must retain unrounded event times and exchange sequence where available.
 
 An active Kite Connect subscription plus local credentials can independently cross-check the index candles and capture future quotes through the market-data stream. Kite's archive exposes minute-and-higher OHLC and its continuous expired-contract route covers daily futures candles. An exchange or authorized vendor must supply historical expired CE/PE bid/ask and sizes. Extra inputs for a profitability verdict include time-effective tariffs and contract masters, clean official exchange sessions, full coverage across market regimes and an independent held-out quote replay. [Kite historical API](https://kite.trade/docs/connect/v3/historical/) · [Kite WebSocket](https://kite.trade/docs/connect/v3/websocket/) · [NSE historical order and trade data](https://www.nseindia.com/static/market-data/eod-historical-data-subscription)
+
+## Published-rule follow-up
+
+This exploratory transfer reuses the same archived 2023–2026 sample, with the same 453 comparable test sessions per index. No parameters were selected against those results. The reused period cannot serve as fresh confirmation.
+
+- **Gao sign.** Compare the 09:45 completed close with the previous complete regular-session close. Take that direction from the 15:00 minute open until the 15:30 bar completion. Zero change stays flat. This transfers the simple published sign rule with equal index-point exposure.
+- **Opposite-band noise rule.** Use the paper's gap-adjusted 14-session bands with the original clock half-hour cadence. The Indian schedule checks 09:30 to 15:00 IST. Enter outside either band, hold inside it, and reverse only if the opposite band is breached at a scheduled check. Use the following minute's open at that boundary. Close all positions at the final minute close. The table uses single-unit spot-index exposure and hypothetical round-trip costs. A reversal closes one trade and opens another. The paper's SPY ETF portfolio sizing and US commissions were outside this transfer.
+- **Closing long baseline.** Go long from 15:00 to 15:30 every complete session.
+
+| Index | Rule | Trades | Net points at 1 bp | Net points at 2 bp | Net points at 5 bp | Adjusted 2 bp interval, points per trade |
+|---|---|---:|---:|---:|---:|---:|
+| Nifty 50 | Gao sign | 453 | −1,611.04 | −2,714.22 | −6,023.78 | [−11.32, −0.81] |
+| Nifty 50 | Opposite-band noise | 284 | +1,789.00 | +1,098.54 | −972.81 | [−14.76, +22.42] |
+| Sensex | Gao sign | 453 | −5,661.61 | −9,248.83 | −20,010.49 | [−38.21, −3.18] |
+| Sensex | Opposite-band noise | 282 | +7,116.07 | +4,884.94 | −1,808.43 | [−44.63, +79.55] |
+
+Intervals use circular five-session block resampling and four-way Bonferroni adjustment across the two candidate rules and two markets at the 2 bp reference cost. The closing-long baseline lost 3,078.92 Nifty points and 11,135.09 Sensex points at 2 bp. Gao lost on both indices before costs. The noise-band interval spans zero in both markets. At 2 bp, Nifty noise lost in development and gained 45.49 points in validation. Sensex noise lost in both earlier periods. This leaves the opposite-band rule as an exploratory lead whose profitability has yet to be confirmed on fresh sessions and a tradable instrument. [Full metrics and cost sensitivity](../evidence/paper_metrics.csv)

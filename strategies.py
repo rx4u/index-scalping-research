@@ -57,6 +57,18 @@ def prepare(frame, minutes=1, timezone=TZ, calendar=None):
     return data.reset_index(drop=True)
 
 
+def noise_bands(data, width=1.0):
+    group = data.groupby("session")
+    opening = group.open.transform("first")
+    previous = group.close.last().shift().reindex(data.session).to_numpy()
+    movement = data.assign(move=(data.close / opening - 1).abs())
+    history = movement.pivot(index="session", columns="minute", values="move")
+    bands = history.shift().rolling(14, min_periods=14).mean().stack().rename("band")
+    result = data.join(bands, on=["session", "minute"])
+    return result.assign(upper=np.maximum(opening, previous) * (1 + width * result.band),
+                         lower=np.minimum(opening, previous) * (1 - width * result.band))
+
+
 def signals(data, method, width=1.0):
     """Causal local adaptations. Width controls the noise and reversal thresholds."""
     if not np.isfinite(width) or width <= 0:
@@ -64,15 +76,8 @@ def signals(data, method, width=1.0):
     d = data.copy()
     group = d.groupby("session")
     if method == "noise_band":
-        opening = group.open.transform("first")
-        previous = group.close.last().shift().reindex(d.session).to_numpy()
-        movement = d.assign(move=(d.close / opening - 1).abs())
-        history = movement.pivot(index="session", columns="minute", values="move")
-        bands = history.shift().rolling(14, min_periods=14).mean().stack().rename("band")
-        d = d.join(bands, on=["session", "minute"])
-        upper = np.maximum(opening, previous) * (1 + width * d.band)
-        lower = np.minimum(opening, previous) * (1 - width * d.band)
-        direction = np.select([d.close > upper, d.close < lower], [1, -1], 0)
+        d = noise_bands(d, width)
+        direction = np.select([d.close > d.upper, d.close < d.lower], [1, -1], 0)
     elif method == "momentum":
         fast = group.close.pct_change(3)
         slow = group.close.pct_change(12)

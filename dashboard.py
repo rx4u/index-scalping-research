@@ -13,7 +13,7 @@ def build(report, out):
         path = report / name
         return json.loads(pd.read_csv(path).to_json(orient="records")) if path.exists() else []
 
-    payload = {"metrics": records("index_metrics.csv"), "trades": records("index_trades.csv"),
+    payload = {"paper": records("paper_metrics.csv"),"metrics": records("index_metrics.csv"), "trades": records("index_trades.csv"),
                "options": records("option_proxy_metrics.csv"), "optionTrades": records("option_proxy_trades.csv"),
                "manifest": json.loads((report / "manifest.json").read_text())}
     for name in ("option_proxy_manifest", "source_crosscheck"):

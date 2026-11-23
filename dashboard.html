@@ -32,6 +32,7 @@ summary{font-weight:700}pre{white-space:pre-wrap;overflow-wrap:anywhere}
 <section><h2>Index trades</h2><div class="scroll" id="trades"></div><div class="pages"><button id="prev">Previous</button><span id="page"></span><button id="next">Next</button></div></section>
 <section><h2>CE/PE execution evidence</h2><p><strong>INSUFFICIENT DATA</strong> for 5- and 15-second fills. The minute-candle study uses historical CE/PE opens with modeled friction.</p>
 <div class="scroll" id="options"></div><details><summary>Option trade sample</summary><div class="scroll" id="optionTrades"></div></details></section>
+<section><h2>Published-rule follow-up</h2><p>Exploratory spot-index results on reused test dates. Uses the selected index and cost.</p><div class="scroll" id="paper"></div></section>
 <details><summary>Data provenance and run configuration</summary><pre id="provenance"></pre></details>
 </main>
 <script>
@@ -111,6 +112,9 @@ function render() {
   chart(trades);
   table("trades",trades.slice(page*perPage,(page+1)*perPage),[["entry_time","Entry (IST)"],["exit_time","Exit (IST)"],["side","Side"],["entry","Entry"],["exit","Exit"],["reason","Exit reason"],["gross_points","Gross pts"],["net_points","Net pts"]]);
   el("page").textContent = `Page ${page+1} of ${pages}`; el("prev").disabled = page===0; el("next").disabled=page+1>=pages;
+  table("paper", data.paper.filter(x => x.instrument === instrument && x.cost_bps === cost && x.period === "reused_test"),
+    [["strategy","Rule"],["sessions","Sessions"],["trades","Trades"],["net_points","Net points"],
+     ["net_expectancy","Points per trade"],["bootstrap_low","CI low"],["bootstrap_high","CI high"]]);
   table("options",data.options.filter(matches),[["strategy","Strategy"],["attempts","Attempts"],["closed","Closed"],["friction_bps","Friction / side (bp)"],["net_inr","Proxy net ₹"]]);
   table("optionTrades",data.optionTrades.filter(x=>matches(x)&&x.strategy===strategy).slice(0,25),
     [["session","Session"],["option_type","Type"],["strike","Strike"],["expiry","Expiry"],["status","Status"],
