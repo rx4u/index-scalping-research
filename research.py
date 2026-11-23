@@ -17,7 +17,8 @@ GRID = {"noise_band": (0.8, 1.0, 1.2), "momentum": (0.8, 1.0, 1.2),
 
 
 def read_index(spec):
-    files = sorted(glob.glob(spec["csv"], recursive=True))
+    paths = spec["csv"]
+    files = sorted(paths if isinstance(paths, list) else glob.glob(paths, recursive=True))
     if not files:
         raise FileNotFoundError(spec["csv"])
     frames, hashes = [], {}

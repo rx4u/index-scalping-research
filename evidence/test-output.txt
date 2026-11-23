@@ -1,3 +1,5 @@
+test_bad_download_is_not_saved (test_public_data.PublicDownloadTests.test_bad_download_is_not_saved) ... ok
+test_verifies_download_and_reuses_cache (test_public_data.PublicDownloadTests.test_verifies_download_and_reuses_cache) ... ok
 test_cost_metrics_and_partitions (test_research.IndexTests.test_cost_metrics_and_partitions) ... ok
 test_gap_and_missing_calendar_day_are_counted (test_research.IndexTests.test_gap_and_missing_calendar_day_are_counted) ... ok
 test_gap_precedes_intrabar_range (test_research.IndexTests.test_gap_precedes_intrabar_range) ... ok
@@ -13,6 +15,6 @@ test_no_future_quote_contract_or_spread (test_research.OptionTests.test_no_futur
 test_tick_boundary_and_sequence (test_research.OptionTests.test_tick_boundary_and_sequence) ... ok
 
 ----------------------------------------------------------------------
-Ran 13 tests in 0.748s
+Ran 15 tests in 0.906s
 
 OK

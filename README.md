@@ -4,41 +4,18 @@ The fixed held-out index screen failed for all tested candidates at the referenc
 
 ## Reproduce the public-data run
 
-Use Python 3.11 or 3.12 and run from the repository root.
+Use Python 3.11 or 3.12 and run from the repository root. This workflow downloads free, pinned files, verifies their SHA-256 checksums, runs both index studies and the CE/PE premium comparison, and builds the offline dashboard. It uses no broker credentials.
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
-python -m unittest discover -s tests -v
-
-mkdir -p ../work
-git clone https://github.com/technovusin/nifty50-historical-data ../work/nifty50
-git -C ../work/nifty50 checkout dfbd420e5f0b0d336c332602836ab37b7a1ea7dd
-git clone https://github.com/technovusin/sensex-historical-data ../work/sensex
-git -C ../work/sensex checkout f75fb1ee2f5ff53188f005b0d6ef16307a51cb30
-
-python research.py --config config.example.json --out reports
-python dashboard.py --reports reports --out reports/dashboard.html
+python run_public.py
 ```
 
-Open `reports/dashboard.html` in a browser. It works offline with filterable index metrics, cumulative P&L, trade detail and provenance. CSV imports require minute **opening** timestamps in `date` or `timestamp`, plus `open,high,low,close`. Naive timestamps default to Asia/Kolkata. To audit missing whole sessions, add a `calendar` CSV path to each instrument config with a `session` column of regular exchange dates. These paths are relative to the shell's working directory. Market holidays and special schedules should come from exchange records for the series and date range.
+Open `reports/dashboard.html` in a browser. It works offline and includes filterable index metrics, cumulative P&L, trade detail and provenance. Cached inputs live under `data/public`. Use `--cache` and `--out` to choose different directories. To download the report built by GitHub Actions, open the **Public data research** workflow run and download **public-research-report** from its Artifacts section.
 
-To replicate the optional premium-print comparison and secondary close audit:
-
-```bash
-rev=0f4800e43e6f96cec0794369d78eb4d3c4211ef5
-base="https://huggingface.co/datasets/thetrademarkk/india-index-options-1m/resolve/$rev"
-for item in NIFTY/2026-05-26 NIFTY/2026-06-02 SENSEX/2026-05-14 SENSEX/2026-05-21; do
-  curl -fLsS "$base/options/$item.parquet" -o "../work/${item/\//_}.parquet"
-done
-for symbol in NIFTY SENSEX; do
-  curl -fLsS "$base/index/$symbol.parquet" -o "../work/$symbol.parquet"
-done
-python option_proxy.py --reports reports --inputs ../work
-python source_crosscheck.py --inputs ../work
-python dashboard.py
-```
+To run your own index inputs, copy `config.example.json`, update the paths and date ranges, and call `python research.py --config <path>`. CSV imports require minute **opening** timestamps in `date` or `timestamp` and `open,high,low,close` columns. Naive timestamps default to Asia/Kolkata. To flag absent regular sessions, supply a `calendar` CSV with a `session` column of exchange dates. Paths are relative to the shell's working directory.
 
 ## Zerodha Connect setup
 
